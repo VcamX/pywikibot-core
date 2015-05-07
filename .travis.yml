@@ -86,7 +86,7 @@ env:
 notifications:
   email:
     recipients:
-      - pywikibot-commits@lists.wikimedia.org
+      - vcamx3@gmail.com
     on_success: always
     on_failure: always
   irc:
