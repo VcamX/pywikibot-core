@@ -25,7 +25,14 @@ __docformat__ = 'epytext'
 import atexit
 import sys
 import time
-import cookielib
+
+if sys.version_info[0] > 2:
+    from http import cookiejar as cookielib
+    from urllib.parse import quote
+else:
+    import cookielib
+    from urllib2 import quote
+
 import pywikibot
 
 from distutils.version import StrictVersion
