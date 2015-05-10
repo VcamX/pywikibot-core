@@ -32,6 +32,13 @@ from distutils.version import StrictVersion
 from string import Formatter
 from warnings import warn
 
+if sys.version_info[0] > 2:
+    from http import cookiejar as cookielib
+    from urllib.parse import quote
+else:
+    import cookielib
+    from urllib2 import quote
+
 from pywikibot import config
 from pywikibot.tools import deprecate_arg
 import requests
@@ -199,7 +206,7 @@ def request(site=None, uri=None, method='GET', body=None, headers=None,
 
     headers['user-agent'] = user_agent(site, format_string)
 
-    r = fetch(baseuri, *args, **kwargs)
+    r = fetch(baseuri, **kwargs)
     pywikibot.debug(r.text, _logger)
     return r.text
 
