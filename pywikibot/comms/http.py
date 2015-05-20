@@ -22,22 +22,12 @@ from __future__ import unicode_literals
 __version__ = '$Id$'
 __docformat__ = 'epytext'
 
-import atexit
 import sys
-import time
 
-if sys.version_info[0] > 2:
-    from http import cookiejar as cookielib
-    from urllib.parse import quote
-else:
-    import cookielib
-    from urllib2 import quote
-
-import pywikibot
-
-from distutils.version import StrictVersion
 from string import Formatter
 from warnings import warn
+
+import requests
 
 if sys.version_info[0] > 2:
     from http import cookiejar as cookielib
@@ -47,8 +37,22 @@ else:
     from urllib2 import quote
 
 from pywikibot import config
+from pywikibot.exceptions import (
+    FatalServerError, Server504Error, Server414Error
+)
+from pywikibot.comms import threadedhttp
 from pywikibot.tools import deprecate_arg
-import requests
+import pywikibot.version
+
+if sys.version_info[:3] >= (2, 7, 9):
+    # Python 2.7.9 includes a backport of the ssl module from Python 3
+    # https://www.python.org/dev/peps/pep-0466/
+    SSL_CERT_VERIFY_FAILED_MSG = "SSL: CERTIFICATE_VERIFY_FAILED"
+else:
+    # The OpenSSL error code for
+    #   certificate verify failed
+    # cf. `openssl errstr 14090086`
+    SSL_CERT_VERIFY_FAILED_MSG = ":14090086:"
 
 _logger = 'lolhttp'
 
@@ -66,7 +70,7 @@ else:
 pywikibot.cookie_jar = cookie_jar
 
 session = requests.Session()
-session.cookies=cookie_jar
+session.cookies = cookie_jar
 
 USER_AGENT_PRODUCTS = {
     'python': 'Python/' + '.'.join([str(i) for i in sys.version_info]),
@@ -217,6 +221,79 @@ def request(site=None, uri=None, method='GET', body=None, headers=None,
     pywikibot.debug(r.text, _logger)
     return r.text
 
+
+def error_handling_callback(request):
+    """
+    Raise exceptions and log alerts.
+    @param request: Request that has completed
+    @rtype request: L{threadedhttp.HttpRequest}
+    """
+    # TODO: do some error correcting stuff
+    if isinstance(request.data, requests.exceptions.SSLError):
+        if SSL_CERT_VERIFY_FAILED_MSG in str(request.data):
+            raise FatalServerError(str(request.data))
+
+    # if all else fails
+    if isinstance(request.data, Exception):
+        raise request.data
+
+    if request.status == 504:
+        raise Server504Error("Server %s timed out" % request.hostname)
+
+    if request.status == 414:
+        raise Server414Error('Too long GET request')
+
+    # HTTP status 207 is also a success status for Webdav FINDPROP,
+    # used by the version module.
+    if request.status not in (200, 207):
+        pywikibot.warning(u"Http response status %(status)s"
+                          % {'status': request.data[0].status})
+
+
+def _enqueue(uri, method="GET", body=None, headers=None, **kwargs):
+    """
+    Enqueue non-blocking threaded HTTP request with callback.
+    Callbacks, including the default error handler if enabled, are run in the
+    HTTP thread, where exceptions are logged but are not able to be caught.
+    The default error handler is called first, then 'callback' (singular),
+    followed by each callback in 'callbacks' (plural).  All callbacks are
+    invoked, even if the default error handler detects a problem, so they
+    must check request.exception before using the response data.
+    Note: multiple async requests do not automatically run concurrently,
+    as they are limited by the number of http threads in L{numthreads},
+    which is set to 1 by default.
+    @see: L{httplib2.Http.request} for parameters.
+    @kwarg default_error_handling: Use default error handling
+    @type default_error_handling: bool
+    @kwarg callback: Method to call once data is fetched
+    @type callback: callable
+    @kwarg callbacks: Methods to call once data is fetched
+    @type callbacks: list of callable
+    @rtype: L{threadedhttp.HttpRequest}
+    """
+    default_error_handling = kwargs.pop('default_error_handling', None)
+    callback = kwargs.pop('callback', None)
+
+    callbacks = []
+    if default_error_handling:
+        callbacks.append(error_handling_callback)
+    if callback:
+        callbacks.append(callback)
+
+    callbacks += kwargs.pop('callbacks', [])
+
+    if not headers:
+        headers = {}
+
+    user_agent_format_string = headers.get("user-agent", None)
+    if not user_agent_format_string or '{' in user_agent_format_string:
+        headers["user-agent"] = user_agent(None, user_agent_format_string)
+
+    request = threadedhttp.HttpRequest(
+        uri, method, body, headers, callbacks, **kwargs)
+    return request
+
+
 def fetch(uri, method="GET", body=None, headers=None,
           default_error_handling=True, **kwargs):
     """
@@ -231,9 +308,11 @@ def fetch(uri, method="GET", body=None, headers=None,
     @type default_error_handling: bool
     @rtype: L{threadedhttp.HttpRequest}
     """
-    pywikibot.debug("%r %r %r" % (method, uri, body), _logger)
-    pywikibot.debug(repr(cookie_jar), _logger)
-    import time
-    time.sleep(1)
-    request = session.request(method, uri, data=body, headers=headers, cookies=cookie_jar)
+    request = _enqueue(uri, method, body, headers, **kwargs)
+    threadedhttp.http_process(session, request)
+    assert(request._data)  # if there's no data in the answer we're in trouble
+    # Run the error handling callback in the callers thread so exceptions
+    # may be caught.
+    if default_error_handling:
+        error_handling_callback(request)
     return request

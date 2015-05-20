@@ -377,16 +377,13 @@ class HttpRequest(UnicodeMixin):
 
     @property
     def data(self):
-        """Return the httplib2 response tuple."""
-        if not self._data:
-            self._join()
-
+        """Return the requests response tuple."""
         assert(self._data)
         return self._data
 
     @data.setter
     def data(self, value):
-        """Set the httplib2 response and invoke each callback."""
+        """Set the requests response and invoke each callback."""
         self._data = value
 
         if self.callbacks:
@@ -403,13 +400,13 @@ class HttpRequest(UnicodeMixin):
     def response_headers(self):
         """Return the response headers."""
         if not self.exception:
-            return self.data[0]
+            return self.data.headers
 
     @property
     def raw(self):
         """Return the raw response body."""
         if not self.exception:
-            return self.data[1]
+            return self.data.content
 
     @property
     def parsed_uri(self):
@@ -429,7 +426,8 @@ class HttpRequest(UnicodeMixin):
 
         @rtype: int
         """
-        return self.response_headers.status
+        if not self.exception:
+            return self.data.status_code
 
     @property
     def header_encoding(self):
@@ -542,6 +540,20 @@ class HttpProcessor(threading.Thread):
                     item.lock.release()
                 # if data wasn't set others might hang; but wait on lock release
                 assert(item._data)
+
+
+def http_process(session, http_request):
+    method = http_request.method
+    uri = http_request.uri
+    body = http_request.body
+    headers = http_request.headers
+
+    try:
+        request = session.request(method, uri, data=body, headers=headers)
+    except Exception as e:
+        http_request.data = e
+    else:
+        http_request.data = request
 
 
 # Metaweb Technologies, Inc. License:

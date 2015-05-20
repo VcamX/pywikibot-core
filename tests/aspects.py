@@ -484,15 +484,14 @@ class CheckHostnameMixin(TestCaseBase):
             try:
                 if '://' not in hostname:
                     hostname = 'http://' + hostname
-                try:
-                    r = http.fetch(uri=hostname,
-                                   default_error_handling=False)
-                except requests.exceptions.RequestException as e1:
-                    e = e1
+                r = http.fetch(uri=hostname,
+                               default_error_handling=False)
+                if r.exception:
+                    e = r.exception
                 else:
-                    if r.status_code not in [200, 301, 302, 303, 307, 308]:
+                    if r.status not in [200, 301, 302, 303, 307, 308]:
                         raise ServerError('HTTP status: %d' % r.status)
-                    r.text  # default decode may raise exception
+                    r.content  # default decode may raise exception
             except Exception as e2:
                 pywikibot.error('%s: accessing %s caused exception:'
                                 % (cls.__name__, hostname))
