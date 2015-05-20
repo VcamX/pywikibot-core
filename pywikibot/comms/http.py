@@ -308,7 +308,7 @@ def fetch(uri, method="GET", body=None, headers=None,
     @rtype: L{threadedhttp.HttpRequest}
     """
     request = _enqueue(uri, method, body, headers, **kwargs)
-    threadedhttp.http_process(session, request)
+    threadedhttp.http_process(session, cookie_jar, request)
     assert(request._data)  # if there's no data in the answer we're in trouble
     # Run the error handling callback in the callers thread so exceptions
     # may be caught.

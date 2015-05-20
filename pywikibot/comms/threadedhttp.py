@@ -542,14 +542,14 @@ class HttpProcessor(threading.Thread):
                 assert(item._data)
 
 
-def http_process(session, http_request):
+def http_process(session, cookies, http_request):
     method = http_request.method
     uri = http_request.uri
     body = http_request.body
     headers = http_request.headers
 
     try:
-        request = session.request(method, uri, data=body, headers=headers)
+        request = session.request(method, uri, data=body, headers=headers, cookies=cookies)
     except Exception as e:
         http_request.data = e
     else:
