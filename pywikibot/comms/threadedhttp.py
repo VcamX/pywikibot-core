@@ -25,291 +25,19 @@ __docformat__ = 'epytext'
 import codecs
 import re
 import sys
-import threading
 
 if sys.version_info[0] > 2:
     from http import cookiejar as cookielib
-    from urllib.parse import splittype, splithost, unquote, urlparse, urljoin
 else:
     import cookielib
-    from urlparse import urlparse, urljoin
+    from urlparse import urlparse
     from urllib import splittype, splithost, unquote
 
 import pywikibot
 
-from pywikibot import config
-
 from pywikibot.tools import UnicodeMixin
 
 _logger = "comm.threadedhttp"
-
-
-import httplib2
-
-
-class ConnectionPool(object):
-
-    """A thread-safe connection pool."""
-
-    def __init__(self, maxnum=5):
-        """
-        Constructor.
-
-        @param maxnum: Maximum number of connections per identifier.
-                       The pool drops excessive connections added.
-
-        """
-        pywikibot.debug(u"Creating connection pool.", _logger)
-        self.connections = {}
-        self.lock = threading.Lock()
-        self.maxnum = maxnum
-
-    def __del__(self):
-        """Destructor to close all connections in the pool."""
-        self.lock.acquire()
-        try:
-            pywikibot.debug(u"Closing connection pool (%s connections)"
-                            % len(self.connections),
-                            _logger)
-            for key in self.connections:
-                for connection in self.connections[key]:
-                    connection.close()
-        except (AttributeError, TypeError):
-            pass   # this shows up when logger has been destroyed first
-        finally:
-            self.lock.release()
-
-    def __repr__(self):
-        return self.connections.__repr__()
-
-    def pop_connection(self, identifier):
-        """Get a connection from identifier's connection pool.
-
-        @param identifier: The pool identifier
-        @return: A connection object if found, None otherwise
-
-        """
-        self.lock.acquire()
-        try:
-            if identifier in self.connections:
-                if len(self.connections[identifier]) > 0:
-                    pywikibot.debug(u"Retrieved connection from '%s' pool."
-                                    % identifier,
-                                    _logger)
-                    return self.connections[identifier].pop()
-            return None
-        finally:
-            self.lock.release()
-
-    def push_connection(self, identifier, connection):
-        """Add a connection to identifier's connection pool.
-
-        @param identifier: The pool identifier
-        @param connection: The connection to add to the pool
-
-        """
-        self.lock.acquire()
-        try:
-            if identifier not in self.connections:
-                self.connections[identifier] = []
-
-            if len(self.connections[identifier]) != self.maxnum:
-                self.connections[identifier].append(connection)
-            else:
-                pywikibot.debug(u"closing %s connection %r"
-                                % (identifier, connection),
-                                _logger)
-                connection.close()
-                del connection
-        finally:
-            self.lock.release()
-
-
-class LockableCookieJar(cookielib.LWPCookieJar):
-
-    """CookieJar with integrated Lock object."""
-
-    def __init__(self, *args, **kwargs):
-        cookielib.LWPCookieJar.__init__(self, *args, **kwargs)
-        self.lock = threading.Lock()
-
-
-class Http(httplib2.Http):
-
-    """Subclass of httplib2.Http that stores cookies.
-
-    Overrides httplib2's internal redirect support to prevent cookies being
-    eaten by the wrong sites.
-    """
-
-    def __init__(self, *args, **kwargs):
-        """
-        Constructor.
-
-        @kwarg cookiejar: (optional) CookieJar to use. A new one will be
-               used when not supplied.
-        @kwarg connection_pool: (optional) Connection pool to use. A new one
-               will be used when not supplied.
-        @kwarg max_redirects: (optional) The maximum number of redirects to
-               follow. 5 is default.
-        @kwarg timeout: (optional) Socket timeout in seconds. Default is
-               config.socket_timeout. Disable with None.
-
-        """
-        try:
-            self.cookiejar = kwargs.pop('cookiejar')
-        except KeyError:
-            self.cookiejar = LockableCookieJar()
-        try:
-            self.connection_pool = kwargs.pop('connection_pool')
-        except KeyError:
-            self.connection_pool = ConnectionPool()
-        self.max_redirects = kwargs.pop('max_redirects', 5)
-        if len(args) < 3:
-            kwargs.setdefault('proxy_info', config.proxy)
-        kwargs.setdefault('timeout', config.socket_timeout)
-        httplib2.Http.__init__(self, *args, **kwargs)
-
-    def request(self, uri, method="GET", body=None, headers=None,
-                max_redirects=None, connection_type=None):
-        """Start an HTTP request.
-
-        @param uri: The uri to retrieve
-        @param method: (optional) The HTTP method to use. Default is 'GET'
-        @param body: (optional) The request body. Default is no body.
-        @param headers: (optional) Additional headers to send. Defaults
-               include C{connection: keep-alive}, C{user-agent} and
-               C{content-type}.
-        @param max_redirects: (optional) The maximum number of redirects to
-               use for this request. The class instance's max_redirects is
-               default
-        @param connection_type: (optional) see L{httplib2.Http.request}
-
-        @return: (response, content) tuple
-
-        """
-        if max_redirects is None:
-            max_redirects = self.max_redirects
-        if headers is None:
-            headers = {}
-        # Prepare headers
-        headers.pop('cookie', None)
-        req = DummyRequest(uri, headers)
-        self.cookiejar.lock.acquire()
-        try:
-            self.cookiejar.add_cookie_header(req)
-        finally:
-            self.cookiejar.lock.release()
-        headers = req.headers
-
-        # Wikimedia squids: add connection: keep-alive to request headers
-        # unless overridden
-        headers['connection'] = headers.pop('connection', 'keep-alive')
-
-        # determine connection pool key and fetch connection
-        (scheme, authority, request_uri,
-         defrag_uri) = httplib2.urlnorm(httplib2.iri2uri(uri))
-        conn_key = scheme + ":" + authority
-
-        connection = self.connection_pool.pop_connection(conn_key)
-        if connection is not None:
-            self.connections[conn_key] = connection
-
-        # Redirect hack: we want to regulate redirects
-        follow_redirects = self.follow_redirects
-        self.follow_redirects = False
-        pywikibot.debug(u"%r" % (
-            (uri.replace("%7C", "|"), method, body,
-             headers, max_redirects,
-             connection_type),
-        ), _logger)
-        try:
-            if authority in config.authenticate:
-                self.add_credentials(*config.authenticate[authority])
-
-            (response, content) = httplib2.Http.request(
-                self, uri, method, body, headers,
-                max_redirects, connection_type
-            )
-        except Exception as e:  # what types?
-            # return exception instance to be retrieved by the calling thread
-            return e
-        finally:
-            self.follow_redirects = follow_redirects
-
-        # return connection to pool
-        self.connection_pool.push_connection(conn_key,
-                                             self.connections[conn_key])
-        del self.connections[conn_key]
-
-        # First write cookies
-        self.cookiejar.lock.acquire()
-        try:
-            self.cookiejar.extract_cookies(DummyResponse(response), req)
-        finally:
-            self.cookiejar.lock.release()
-
-        # Check for possible redirects
-        redirectable_response = ((response.status == 303) or
-                                 (response.status in [300, 301, 302, 307] and
-                                  method in ["GET", "HEAD"]))
-        if (self.follow_redirects and (max_redirects > 0) and
-                redirectable_response):
-            # Return directly and not unpack the values in case the result was
-            # an exception, which can't be unpacked
-            return self._follow_redirect(
-                uri, method, body, headers, response, content, max_redirects)
-        else:
-            return response, content
-
-    def _follow_redirect(self, uri, method, body, headers, response,
-                         content, max_redirects):
-        """Internal function to follow a redirect recieved by L{request}."""
-        (scheme, authority, absolute_uri,
-         defrag_uri) = httplib2.urlnorm(httplib2.iri2uri(uri))
-        if self.cache:
-            cachekey = defrag_uri
-        else:
-            cachekey = None
-
-        # Pick out the location header and basically start from the beginning
-        # remembering first to strip the ETag header and decrement our 'depth'
-        if "location" not in response and response.status != 300:
-            raise httplib2.RedirectMissingLocation(
-                "Redirected but the response is missing a Location: header.",
-                response, content)
-        # Fix-up relative redirects (which violate an RFC 2616 MUST)
-        if "location" in response:
-            location = response['location']
-            (scheme, authority, path, query,
-             fragment) = httplib2.parse_uri(location)
-            if authority is None:
-                response['location'] = urljoin(uri, location)
-                pywikibot.debug(u"Relative redirect: changed [%s] to [%s]"
-                                % (location, response['location']),
-                                _logger)
-        if response.status == 301 and method in ["GET", "HEAD"]:
-            response['-x-permanent-redirect-url'] = response['location']
-            if "content-location" not in response:
-                response['content-location'] = absolute_uri
-            httplib2._updateCache(headers, response, content, self.cache,
-                                  cachekey)
-
-        headers.pop('if-none-match', None)
-        headers.pop('if-modified-since', None)
-
-        if "location" in response:
-            location = response['location']
-            redirect_method = ((response.status == 303) and
-                               (method not in ["GET", "HEAD"])
-                               ) and "GET" or method
-            return self.request(location, redirect_method, body=body,
-                                headers=headers,
-                                max_redirects=max_redirects - 1)
-        else:
-            return httplib2.RedirectLimit(
-                "Redirected more times than redirection_limit allows.",
-                response, content)
 
 
 class HttpRequest(UnicodeMixin):
@@ -369,11 +97,6 @@ class HttpRequest(UnicodeMixin):
 
         self._parsed_uri = None
         self._data = None
-        self.lock = threading.Semaphore(0)
-
-    def _join(self):
-        """Block until response has arrived."""
-        self.lock.acquire(True)
 
     @property
     def data(self):
@@ -499,57 +222,14 @@ class HttpRequest(UnicodeMixin):
         return self.raw
 
 
-class HttpProcessor(threading.Thread):
-
-    """Thread object to spawn multiple HTTP connection threads."""
-
-    def __init__(self, queue, cookiejar, connection_pool):
-        """
-        Constructor.
-
-        @param queue: The C{Queue.Queue} object that contains L{HttpRequest}
-               objects.
-        @param cookiejar: The C{LockableCookieJar} cookie object to share among
-               requests.
-        @param connection_pool: The C{ConnectionPool} object which contains
-               connections to share among requests.
-
-        """
-        threading.Thread.__init__(self)
-        self.queue = queue
-        self.http = Http(cookiejar=cookiejar, connection_pool=connection_pool)
-
-    def run(self):
-        # The Queue item is expected to either an HttpRequest object
-        # or None (to shut down the thread)
-        pywikibot.debug(u"Thread started, waiting for requests.", _logger)
-        while True:
-            item = self.queue.get()
-            if item is None:
-                pywikibot.debug(u"Shutting down thread.", _logger)
-                return
-
-            # This needs to be set per request, however it is only used
-            # the first time the pooled connection is created.
-            self.http.disable_ssl_certificate_validation = \
-                item.kwargs.pop('disable_ssl_certificate_validation', False)
-            try:
-                item.data = self.http.request(*item.args, **item.kwargs)
-            finally:
-                if item.lock:
-                    item.lock.release()
-                # if data wasn't set others might hang; but wait on lock release
-                assert(item._data)
-
-
-def http_process(session, cookies, http_request):
+def http_process(session, http_request):
     method = http_request.method
     uri = http_request.uri
     body = http_request.body
     headers = http_request.headers
 
     try:
-        request = session.request(method, uri, data=body, headers=headers, cookies=cookies)
+        request = session.request(method, uri, data=body, headers=headers)
     except Exception as e:
         http_request.data = e
     else:
