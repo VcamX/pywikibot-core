@@ -217,9 +217,8 @@ def request(site=None, uri=None, method='GET', body=None, headers=None,
 
     headers['user-agent'] = user_agent(site, format_string)
 
-    r = fetch(baseuri, **kwargs)
-    pywikibot.debug(r.text, _logger)
-    return r.text
+    r = fetch(baseuri, method, body, headers, **kwargs)
+    return r.content
 
 
 def error_handling_callback(request):
