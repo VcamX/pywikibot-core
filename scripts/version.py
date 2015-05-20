@@ -18,9 +18,9 @@ import os
 import pywikibot
 from pywikibot.version import getversion
 try:
-    import httplib2
+    import requests
 except ImportError:
-    httplib2 = {'__version__': 'n/a'}
+    requests = {'__version__': 'n/a'}
 
 WMF_CACERT = 'MIIDxTCCAq2gAwIBAgIQAqxcJmoLQJuPC3nyrkYldzANBgkqhkiG9w0BAQUFADBs'
 
@@ -33,25 +33,28 @@ def check_environ(environ_name):
 if __name__ == '__main__':
     pywikibot.output('Pywikibot: %s' % getversion())
     pywikibot.output('Release version: %s' % pywikibot.__release__)
-    pywikibot.output('httplib2 version: %s' % httplib2.__version__)
+    pywikibot.output('requests version: %s' % requests.__version__)
 
     has_wikimedia_cert = False
-    if not hasattr(httplib2, 'CA_CERTS') or not httplib2.CA_CERTS:
+    if not hasattr(requests, 'certs') or not hasattr(requests.certs, 'where') or \
+            not hasattr(requests.certs.where, '__call__'):
         pywikibot.output('  cacerts: not defined')
-    elif not os.path.isfile(httplib2.CA_CERTS):
-        pywikibot.output('  cacerts: %s (missing)' % httplib2.CA_CERTS)
+    elif not os.path.isfile(requests.certs.where()):
+        pywikibot.output('  cacerts: %s (missing)' % requests.certs.where())
     else:
-        pywikibot.output('  cacerts: %s' % httplib2.CA_CERTS)
+        pywikibot.output('  cacerts: %s' % requests.certs.where())
 
-        with open(httplib2.CA_CERTS, 'r') as cert_file:
+        with open(requests.certs.where(), 'r') as cert_file:
             text = cert_file.read()
+            if sys.version_info[0] < 3:
+                text = text.decode('utf-8')
             if WMF_CACERT in text:
                 has_wikimedia_cert = True
         pywikibot.output(u'    certificate test: %s'
                          % ('ok' if has_wikimedia_cert else 'not ok'))
     if not has_wikimedia_cert:
         pywikibot.output(
-            '  Please reinstall httplib2 or run git submodules update!')
+            '  Please reinstall requests!')
 
     pywikibot.output('Python: %s' % sys.version)
     normalize_text = u'\u092e\u093e\u0930\u094d\u0915 \u091c\u093c\u0941\u0915\u0947\u0930\u092c\u0930\u094d\u0917'
