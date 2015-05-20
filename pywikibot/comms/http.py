@@ -22,42 +22,17 @@ from __future__ import unicode_literals
 __version__ = '$Id$'
 __docformat__ = 'epytext'
 
-import atexit
 import sys
-import time
 
-from distutils.version import StrictVersion
 from string import Formatter
 from warnings import warn
 
-# Verify that a working httplib2 is present.
-try:
-    import httplib2
-except ImportError:
-    print("Error: Python module httplib2 >= 0.6.0 is required.")
-    sys.exit(1)
-
-# httplib2 0.6.0 was released with __version__ as '$Rev$'
-#                and no module variable CA_CERTS.
-if httplib2.__version__ == '$Rev$' and 'CA_CERTS' not in httplib2.__dict__:
-    httplib2.__version__ = '0.6.0'
-if StrictVersion(httplib2.__version__) < StrictVersion("0.6.0"):
-    print("Error: Python module httplib2 (%s) is not 0.6.0 or greater." %
-          httplib2.__file__)
-    sys.exit(1)
+import requests
 
 if sys.version_info[0] > 2:
-    from ssl import SSLError as SSLHandshakeError
-    import queue as Queue
     from http import cookiejar as cookielib
     from urllib.parse import quote
 else:
-    if 'SSLHandshakeError' in httplib2.__dict__:
-        from httplib2 import SSLHandshakeError
-    elif httplib2.__version__ == '0.6.0':
-        from httplib2 import ServerNotFoundError as SSLHandshakeError
-
-    import Queue
     import cookielib
     from urllib2 import quote
 
@@ -81,16 +56,8 @@ else:
 
 _logger = "comm.http"
 
-# global variables
-
-numthreads = 1
-threads = []
-
-connection_pool = threadedhttp.ConnectionPool()
-http_queue = Queue.Queue()
-
 cookie_jar = cookielib.LWPCookieJar(
-    config.datafilepath("pywikibot.lwp"))
+    config.datafilepath("pywikibot.lwp2"))
 try:
     cookie_jar.load()
 except (IOError, cookielib.LoadError):
@@ -99,41 +66,15 @@ else:
     pywikibot.debug(u"Loaded cookies from file.", _logger)
 
 
-# Build up HttpProcessors
-pywikibot.log(u'Starting %(numthreads)i threads...' % locals())
-for i in range(numthreads):
-    proc = threadedhttp.HttpProcessor(http_queue, cookie_jar, connection_pool)
-    proc.setDaemon(True)
-    threads.append(proc)
-    proc.start()
-
-
-# Prepare flush on quit
-def _flush():
-    for i in threads:
-        http_queue.put(None)
-
-    message = (u'Waiting for %i network thread(s) to finish. '
-               u'Press ctrl-c to abort' % len(threads))
-    if hasattr(sys, 'last_type'):
-        # we quit because of an exception
-        print(sys.last_type)
-        pywikibot.critical(message)
-    else:
-        pywikibot.log(message)
-
-    while any(t for t in threads if t.isAlive()):
-        time.sleep(.1)
-
-    pywikibot.log(u"All threads finished.")
-atexit.register(_flush)
-
 # export cookie_jar to global namespace
 pywikibot.cookie_jar = cookie_jar
 
+session = requests.Session()
+session.cookies = cookie_jar
+
 USER_AGENT_PRODUCTS = {
     'python': 'Python/' + '.'.join([str(i) for i in sys.version_info]),
-    'httplib2': 'httplib2/' + httplib2.__version__,
+    'backend': 'requests/' + requests.__version__,
     'pwb': 'Pywikibot/' + pywikibot.__release__,
 }
 
@@ -288,7 +229,7 @@ def error_handling_callback(request):
     @rtype request: L{threadedhttp.HttpRequest}
     """
     # TODO: do some error correcting stuff
-    if isinstance(request.data, SSLHandshakeError):
+    if isinstance(request.data, requests.exceptions.SSLError):
         if SSL_CERT_VERIFY_FAILED_MSG in str(request.data):
             raise FatalServerError(str(request.data))
 
@@ -306,7 +247,7 @@ def error_handling_callback(request):
     # used by the version module.
     if request.status not in (200, 207):
         pywikibot.warning(u"Http response status %(status)s"
-                          % {'status': request.data[0].status})
+                          % {'status': request.data.status_code})
 
 
 def _enqueue(uri, method="GET", body=None, headers=None, **kwargs):
@@ -354,7 +295,7 @@ def _enqueue(uri, method="GET", body=None, headers=None, **kwargs):
 
     request = threadedhttp.HttpRequest(
         uri, method, body, headers, callbacks, **kwargs)
-    http_queue.put(request)
+    threadedhttp.http_process(session, request)
     return request
 
 
@@ -373,7 +314,6 @@ def fetch(uri, method="GET", body=None, headers=None,
     @rtype: L{threadedhttp.HttpRequest}
     """
     request = _enqueue(uri, method, body, headers, **kwargs)
-    request._join()  # wait for it
     assert(request._data)  # if there's no data in the answer we're in trouble
     # Run the error handling callback in the callers thread so exceptions
     # may be caught.
