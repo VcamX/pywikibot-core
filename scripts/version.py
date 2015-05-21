@@ -45,7 +45,7 @@ if __name__ == '__main__':
         pywikibot.output('  cacerts: %s' % requests.certs.where())
 
         with open(requests.certs.where(), 'r') as cert_file:
-            text = cert_file.read()
+            text = cert_file.read().decode('utf-8')
             if WMF_CACERT in text:
                 has_wikimedia_cert = True
         pywikibot.output(u'    certificate test: %s'
