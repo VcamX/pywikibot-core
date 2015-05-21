@@ -193,7 +193,7 @@ class TestHttpStatus(TestCase):
         r = http.fetch(uri='http://www.gandi.eu')
         self.assertEqual(r.status, 200)
         self.assertEqual(http.session.redirect_cache.get('http://www.gandi.eu/'),
-                         'http://www.gandi.net/')
+                         'http://www.gandi.net')
 
     # def test_maximum_redirects(self):
     #     """Test that maximum redirect exception doesn't hang up."""
