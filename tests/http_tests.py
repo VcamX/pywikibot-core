@@ -188,11 +188,11 @@ class TestHttpStatus(TestCase):
         r = http.fetch(uri='http://en.wikipedia.org/wiki/Main%20Page')
         self.assertEqual(r.status, 200)
         self.assertIn('//en.wikipedia.org/wiki/Main_Page',
-                      r.response_headers['content-location'])
+                      r.data.history[0].headers['location'])
 
         r = http.fetch(uri='http://www.gandi.eu')
         self.assertEqual(r.status, 200)
-        self.assertEqual(r.response_headers['content-location'],
+        self.assertEqual(r.data.history[0].headers['location'],
                          'http://www.gandi.net')
 
     # def test_maximum_redirects(self):
@@ -354,7 +354,7 @@ class DefaultUserAgentTestCase(TestCase):
 
     def setUp(self):
         self.orig_format = config.user_agent_format
-        config.user_agent_format = '{script_product} ({script_comments}) {pwb} ({revision}) {requests} {python}'
+        config.user_agent_format = '{script_product} ({script_comments}) {pwb} ({revision}) {backend} {python}'
 
     def tearDown(self):
         config.user_agent_format = self.orig_format
