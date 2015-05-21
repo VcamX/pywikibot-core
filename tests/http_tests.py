@@ -187,11 +187,13 @@ class TestHttpStatus(TestCase):
         # The following will redirect from ' ' -> '_', and maybe to https://
         r = http.fetch(uri='http://en.wikipedia.org/wiki/Main%20Page')
         self.assertEqual(r.status, 200)
+        self.assertGreater(len(r.data.history), 0)
         self.assertIn('//en.wikipedia.org/wiki/Main_Page',
                       r.data.history[0].headers['location'])
 
         r = http.fetch(uri='http://www.gandi.eu')
         self.assertEqual(r.status, 200)
+        self.assertGreater(len(r.data.history), 0)
         self.assertEqual(r.data.history[0].headers['location'],
                          'http://www.gandi.net')
 

@@ -28,6 +28,7 @@ import sys
 
 if sys.version_info[0] > 2:
     from http import cookiejar as cookielib
+    from urllib.parse import splittype, splithost, unquote, urlparse
 else:
     import cookielib
     from urlparse import urlparse
