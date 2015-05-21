@@ -101,7 +101,7 @@ class HttpRequest(UnicodeMixin):
     @property
     def data(self):
         """Return the requests response tuple."""
-        assert(self._data)
+        assert(self._data is not None)
         return self._data
 
     @data.setter
