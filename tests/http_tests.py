@@ -12,7 +12,7 @@ __version__ = '$Id$'
 import os
 import sys
 
-import httplib2
+import requests
 
 import pywikibot
 
@@ -164,15 +164,15 @@ class TestHttpStatus(TestCase):
 
     def test_server_not_found(self):
         """Test server not found exception."""
-        self.assertRaises(httplib2.ServerNotFoundError,
+        self.assertRaises(requests.exceptions.ConnectionError,
                           http.fetch,
                           uri='http://ru-sib.wikipedia.org/w/api.php',
                           default_error_handling=True)
 
     def test_invalid_scheme(self):
         """Test invalid scheme."""
-        # A KeyError is raised within httplib2, in a different thread
-        self.assertRaises(KeyError,
+        # A InvalidSchema is raised within requests
+        self.assertRaises(requests.exceptions.InvalidSchema,
                           http.fetch,
                           uri='invalid://url')
 
@@ -180,7 +180,7 @@ class TestHttpStatus(TestCase):
         """Test follow 301 redirects after an exception works correctly."""
         # It doesnt matter what exception is raised here, provided it
         # occurs within the httplib2 request method.
-        self.assertRaises(KeyError,
+        self.assertRaises(requests.exceptions.InvalidSchema,
                           http.fetch,
                           uri='invalid://url')
 
@@ -195,11 +195,11 @@ class TestHttpStatus(TestCase):
         self.assertEqual(r.response_headers['content-location'],
                          'http://www.gandi.net')
 
-    def test_maximum_redirects(self):
-        """Test that maximum redirect exception doesn't hang up."""
-        self.assertRaises(httplib2.RedirectLimit,
-                          http.fetch,
-                          uri='http://getstatuscode.com/300')
+    # def test_maximum_redirects(self):
+    #     """Test that maximum redirect exception doesn't hang up."""
+    #     self.assertRaises(httplib2.RedirectLimit,
+    #                       http.fetch,
+    #                       uri='http://getstatuscode.com/300')
 
 
 # class ThreadedHttpTestCase(TestCase):
@@ -368,7 +368,7 @@ class DefaultUserAgentTestCase(TestCase):
         self.assertNotIn('()', http.user_agent())
         self.assertNotIn('(;', http.user_agent())
         self.assertNotIn(';)', http.user_agent())
-        self.assertIn('httplib2/', http.user_agent())
+        self.assertIn('requests/', http.user_agent())
         self.assertIn('Python/' + str(sys.version_info[0]), http.user_agent())
 
 
@@ -385,7 +385,10 @@ class CharsetTestCase(TestCase):
     @staticmethod
     def _create_request(charset=None, data=UTF8_BYTES):
         req = threadedhttp.HttpRequest(None, charset=charset)
-        req._data = ({'content-type': 'charset=utf-8'}, data[:])
+        data = requests.Response()
+        data.headers = {'content-type': 'charset=utf-8'}
+        data._content = data[:]
+        req._data = data
         return req
 
     def test_no_charset(self):
@@ -455,15 +458,15 @@ class BinaryTestCase(TestCase):
         with open(os.path.join(_images_dir, 'MP_sounds.png'), 'rb') as f:
             cls.png = f.read()
 
-    def test_httplib2(self):
-        """Test with httplib2, underlying package."""
-        h = httplib2.Http()
-        r = h.request(uri=self.url)
-
-        self.assertEqual(r[0]['content-type'], 'image/png')
-        self.assertEqual(r[1], self.png)
-
-        next(iter(h.connections.values())).close()
+    # def test_httplib2(self):
+    #     """Test with httplib2, underlying package."""
+    #     h = httplib2.Http()
+    #     r = h.request(uri=self.url)
+    #
+    #     self.assertEqual(r[0]['content-type'], 'image/png')
+    #     self.assertEqual(r[1], self.png)
+    #
+    #     next(iter(h.connections.values())).close()
 
     # def test_threadedhttp(self):
     #     """Test with threadedhttp, internal layer on top of httplib2."""
