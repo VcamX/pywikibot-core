@@ -187,14 +187,12 @@ class TestHttpStatus(TestCase):
         # The following will redirect from ' ' -> '_', and maybe to https://
         r = http.fetch(uri='http://en.wikipedia.org/wiki/Main%20Page')
         self.assertEqual(r.status, 200)
-        self.assertGreater(len(r.data.history), 0)
         self.assertIn('//en.wikipedia.org/wiki/Main_Page',
-                      r.data.history[0].headers['location'])
+                      http.session.redirect_cache.get('http://en.wikipedia.org/wiki/Main%20Page'))
 
         r = http.fetch(uri='http://www.gandi.eu')
         self.assertEqual(r.status, 200)
-        self.assertGreater(len(r.data.history), 0)
-        self.assertEqual(r.data.history[0].headers['location'],
+        self.assertEqual(http.session.redirect_cache.get('http://www.gandi.eu'),
                          'http://www.gandi.net')
 
     # def test_maximum_redirects(self):
