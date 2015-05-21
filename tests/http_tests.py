@@ -354,7 +354,7 @@ class DefaultUserAgentTestCase(TestCase):
 
     def setUp(self):
         self.orig_format = config.user_agent_format
-        config.user_agent_format = '{script_product} ({script_comments}) {pwb} ({revision}) {httplib2} {python}'
+        config.user_agent_format = '{script_product} ({script_comments}) {pwb} ({revision}) {requests} {python}'
 
     def tearDown(self):
         config.user_agent_format = self.orig_format
@@ -385,10 +385,10 @@ class CharsetTestCase(TestCase):
     @staticmethod
     def _create_request(charset=None, data=UTF8_BYTES):
         req = threadedhttp.HttpRequest(None, charset=charset)
-        data = requests.Response()
-        data.headers = {'content-type': 'charset=utf-8'}
-        data._content = data[:]
-        req._data = data
+        resp = requests.Response()
+        resp.headers = {'content-type': 'charset=utf-8'}
+        resp._content = data[:]
+        req._data = resp
         return req
 
     def test_no_charset(self):
