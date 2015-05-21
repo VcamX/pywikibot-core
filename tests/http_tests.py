@@ -179,7 +179,7 @@ class TestHttpStatus(TestCase):
     def test_follow_redirects(self):
         """Test follow 301 redirects after an exception works correctly."""
         # It doesnt matter what exception is raised here, provided it
-        # occurs within the httplib2 request method.
+        # occurs within the requests request method.
         self.assertRaises(requests.exceptions.InvalidSchema,
                           http.fetch,
                           uri='invalid://url')
@@ -448,7 +448,7 @@ class CharsetTestCase(TestCase):
 
 class BinaryTestCase(TestCase):
 
-    """Get binary file using httplib2 and pywikibot."""
+    """Get binary file using requests and pywikibot."""
 
     net = True
 

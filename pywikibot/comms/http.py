@@ -179,7 +179,7 @@ def request(site=None, uri=None, method='GET', body=None, headers=None,
     """
     Request to Site with default error handling and response decoding.
 
-    See L{httplib2.Http.request} for additional parameters.
+    See L{requests.Session.request} for additional parameters.
 
     If the site argument is provided, the uri is a relative uri from
     and including the document root '/'.
@@ -265,7 +265,7 @@ def _enqueue(uri, method="GET", body=None, headers=None, **kwargs):
     as they are limited by the number of http threads in L{numthreads},
     which is set to 1 by default.
 
-    @see: L{httplib2.Http.request} for parameters.
+    @see: L{requests.Session.request} for parameters.
 
     @kwarg default_error_handling: Use default error handling
     @type default_error_handling: bool
@@ -307,7 +307,7 @@ def fetch(uri, method="GET", body=None, headers=None,
     Note: The callback runs in the HTTP thread, where exceptions are logged
     but are not able to be caught.
 
-    See L{httplib2.Http.request} for parameters.
+    See L{requests.Session.request} for parameters.
 
     @param default_error_handling: Use default error handling
     @type default_error_handling: bool
