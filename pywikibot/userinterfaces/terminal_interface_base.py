@@ -487,8 +487,14 @@ class TerminalHandler(logging.Handler):
             if 'message' in record.__dict__:
                 return
 
-            # Remove the last line, if it appears to be the warn() call
             msg = record.args[0]
+
+            # Suppress InsecurePlatformWarning for python version < 2.7.9
+            if "InsecurePlatformWarning" in msg:
+                if sys.version_info < (2, 7, 9):
+                    return
+
+            # Remove the last line, if it appears to be the warn() call
             is_useless_source_output = any(
                 s in msg for s in
                 (str('warn('), str('exceptions.'), str('Warning)'), str('Warning,')))

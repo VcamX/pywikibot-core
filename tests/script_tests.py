@@ -11,10 +11,6 @@ __version__ = '$Id$'
 import os
 import sys
 
-if sys.version_info < (2, 7, 9):
-    import requests
-    requests.packages.urllib3.disable_warnings()
-
 from pywikibot import config
 
 from tests import _root_dir
