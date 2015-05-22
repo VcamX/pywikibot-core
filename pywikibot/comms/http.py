@@ -22,6 +22,7 @@ from __future__ import unicode_literals
 __version__ = '$Id$'
 __docformat__ = 'epytext'
 
+import atexit
 import sys
 
 from string import Formatter
@@ -64,6 +65,21 @@ except (IOError, cookielib.LoadError):
     pywikibot.debug(u"Loading cookies failed.", _logger)
 else:
     pywikibot.debug(u"Loaded cookies from file.", _logger)
+
+
+# Prepare flush on quit
+def _flush():
+    session.close()
+    message = u'Closing network session.'
+    if hasattr(sys, 'last_type'):
+        # we quit because of an exception
+        print(sys.last_type)
+        pywikibot.critical(message)
+    else:
+        pywikibot.log(message)
+
+    pywikibot.log(u"Network session closed.")
+atexit.register(_flush)
 
 
 # export cookie_jar to global namespace

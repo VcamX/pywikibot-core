@@ -12,7 +12,7 @@ import sys
 
 test_deps = []
 
-dependencies = ['requests >=2, <3']
+dependencies = ['requests>=2.7']
 
 # the irc module has no Python 2.6 support since 10.0
 irc_dep = 'irc==8.9' if sys.version_info < (2, 7) else 'irc'

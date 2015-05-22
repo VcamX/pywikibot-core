@@ -24,13 +24,7 @@ from tests.aspects import unittest, TestCase
 from tests.utils import expected_failure_if
 
 if sys.version_info[0] > 2:
-    from http import cookiejar as cookielib
-    import queue as Queue
-
     unicode = str
-else:
-    import cookielib
-    import Queue
 
 
 class HttpTestCase(TestCase):
@@ -194,108 +188,6 @@ class TestHttpStatus(TestCase):
         self.assertEqual(r.status, 200)
         self.assertEqual(http.session.redirect_cache.get('http://www.gandi.eu/'),
                          'http://www.gandi.net')
-
-    # def test_maximum_redirects(self):
-    #     """Test that maximum redirect exception doesn't hang up."""
-    #     self.assertRaises(httplib2.RedirectLimit,
-    #                       http.fetch,
-    #                       uri='http://getstatuscode.com/300')
-
-
-# class ThreadedHttpTestCase(TestCase):
-#
-#     """Tests for threadedhttp module Http class."""
-#
-#     sites = {
-#         'www-wp': {
-#             'hostname': 'www.wikipedia.org',
-#         },
-#         'wikidata': {
-#             'hostname': 'test.wikidata.org',
-#         },
-#     }
-#
-#     def test_http(self):
-#         """Test threadedhttp.Http.request using http://www.wikipedia.org/."""
-#         o = threadedhttp.Http()
-#         r = o.request('http://www.wikipedia.org/')
-#         self.assertIsInstance(r, tuple)
-#         self.assertNotIsInstance(r[0], Exception)
-#         self.assertIsInstance(r[0], dict)
-#         self.assertIn('status', r[0])
-#         self.assertIsInstance(r[0]['status'], str)
-#         self.assertEqual(r[0]['status'], '200')
-#
-#         self.assertIsInstance(r[1], bytes)
-#         self.assertIn(b'<html lang="mul"', r[1])
-#         self.assertEqual(int(r[0]['content-length']), len(r[1]))
-#
-#     def test_https(self):
-#         """Test threadedhttp.Http.request using https://www.wikipedia.org/."""
-#         o = threadedhttp.Http()
-#         r = o.request('https://www.wikipedia.org/')
-#         self.assertIsInstance(r, tuple)
-#         self.assertNotIsInstance(r[0], Exception)
-#         self.assertIsInstance(r[0], dict)
-#         self.assertIn('status', r[0])
-#         self.assertIsInstance(r[0]['status'], str)
-#         self.assertEqual(r[0]['status'], '200')
-#
-#         self.assertIsInstance(r[1], bytes)
-#         self.assertIn(b'<html lang="mul"', r[1])
-#         self.assertEqual(int(r[0]['content-length']), len(r[1]))
-#
-#     def test_gzip(self):
-#         """Test threadedhttp.Http encodes using gzip."""
-#         o = threadedhttp.Http()
-#         r = o.request('http://www.wikipedia.org/')
-#         self.assertIsInstance(r, tuple)
-#         self.assertNotIsInstance(r[0], Exception)
-#         self.assertIn('-content-encoding', r[0])
-#         self.assertEqual(r[0]['-content-encoding'], 'gzip')
-#
-#         url = 'https://test.wikidata.org/w/api.php?action=query&meta=siteinfo'
-#         r = o.request(url)
-#         self.assertIsInstance(r, tuple)
-#         self.assertNotIsInstance(r[0], Exception)
-#         self.assertIn('-content-encoding', r[0])
-#         self.assertEqual(r[0]['-content-encoding'], 'gzip')
-#
-#
-# class ThreadedHttpRequestQueueTestCase(TestCase):
-#
-#     """Tests for threadedhttp module threaded HttpRequest."""
-#
-#     sites = {
-#         'www-wp': {
-#             'hostname': 'www.wikipedia.org',
-#         },
-#     }
-#
-#     def test_threading(self):
-#         """Test using threadedhttp."""
-#         queue = Queue.Queue()
-#         cookiejar = cookielib.CookieJar()
-#         connection_pool = threadedhttp.ConnectionPool()
-#         proc = threadedhttp.HttpProcessor(queue, cookiejar, connection_pool)
-#         proc.setDaemon(True)
-#         proc.start()
-#         r = threadedhttp.HttpRequest('http://www.wikipedia.org/')
-#         queue.put(r)
-#
-#         self.assertNotIsInstance(r.exception, Exception)
-#         self.assertIsInstance(r.data, tuple)
-#         self.assertIsInstance(r.response_headers, dict)
-#         self.assertIn('status', r.response_headers)
-#         self.assertIsInstance(r.response_headers['status'], str)
-#         self.assertEqual(r.response_headers['status'], '200')
-#         self.assertEqual(r.status, 200)
-#
-#         self.assertIsInstance(r.raw, bytes)
-#         self.assertIn(b'<html lang="mul"', r.raw)
-#         self.assertEqual(int(r.response_headers['content-length']), len(r.raw))
-#
-#         queue.put(None)  # Stop the http processor thread
 
 
 class UserAgentTestCase(TestCase):
@@ -461,22 +353,15 @@ class BinaryTestCase(TestCase):
         with open(os.path.join(_images_dir, 'MP_sounds.png'), 'rb') as f:
             cls.png = f.read()
 
-    # def test_httplib2(self):
-    #     """Test with httplib2, underlying package."""
-    #     h = httplib2.Http()
-    #     r = h.request(uri=self.url)
-    #
-    #     self.assertEqual(r[0]['content-type'], 'image/png')
-    #     self.assertEqual(r[1], self.png)
-    #
-    #     next(iter(h.connections.values())).close()
+    def test_requests(self):
+        """Test with requests, underlying package."""
+        s = requests.Session()
+        r = s.get(self.url)
 
-    # def test_threadedhttp(self):
-    #     """Test with threadedhttp, internal layer on top of httplib2."""
-    #     r = threadedhttp.Http().request(uri=self.url)
-    #
-    #     self.assertEqual(r[0]['content-type'], 'image/png')
-    #     self.assertEqual(r[1], self.png)
+        self.assertEqual(r.headers['content-type'], 'image/png')
+        self.assertEqual(r.content, self.png)
+
+        s.close()
 
     def test_http(self):
         """Test with http, standard http interface for pywikibot."""
