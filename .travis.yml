@@ -27,7 +27,6 @@ install:
   - mkdir ~/.python-eggs
   - chmod 700 ~/.python-eggs
 
-  - pip install certifi
   - pip install requests
 
   - if [[ "$GITHUB_USER" != "wikimedia" ]]; then
