@@ -242,10 +242,15 @@ def request(site=None, uri=None, method='GET', body=None, headers=None,
 
 
 def _http_process(session, http_request):
-    method = http_request.method
-    uri = http_request.uri
+    method = None if http_request.method is None else str(http_request.method)
+    uri = None if http_request.uri is None else str(http_request.uri)
     body = http_request.body
-    headers = http_request.headers
+    if http_request.headers is None:
+        headers = None
+    else:
+        headers = {}
+        for k in http_request.headers:
+            headers[str(k)] = str(http_request.headers[k])
     auth = config.authenticate.get(requests.utils.urlparse(uri).netloc, None)
     timeout = config.socket_timeout
     try:

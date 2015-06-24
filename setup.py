@@ -27,6 +27,16 @@ extra_deps = {
     'Tkinter': ['Pillow'],
     # 0.6.1 supports socket.io 1.0, but WMF is using 0.9 (T91393 and T85716)
     'rcstream': ['socketIO-client<0.6.1'],
+    # Python versions before 2.7.9 will cause urllib3 to trigger
+    # InsecurePlatformWarning warnings for all HTTPS requests. By installing
+    # with security extras (including pyOpenSSL, ndg-httpsclient, and pyasn1),
+    # requests will automatically set them up and the warnings will stop. See
+    # <https://urllib3.readthedocs.org/en/latest/security.html#insecureplatformwarning>
+    # for more details.
+    # cryptography is the dependency of pyOpenSSL. 0.8.2 is the newest and
+    # compatible version which won't raise unexpected DeprecationWarning.
+    'security': ['cryptography==0.8.2', 'pyOpenSSL', 'ndg-httpsclient',
+                 'pyasn1'],
 }
 
 if sys.version_info[0] == 2:
@@ -89,6 +99,9 @@ if sys.version_info[0] == 2:
     # https://pypi.python.org/pypi/ipaddr
     # Other backports are likely broken.
     dependencies.append('ipaddr')
+
+    if sys.version_info < (2, 7, 9):
+        dependencies += extra_deps['security']
 
     script_deps['data_ingestion.py'] = extra_deps['csv']
 
