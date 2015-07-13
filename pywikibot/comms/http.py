@@ -51,10 +51,8 @@ if sys.version_info[:3] >= (2, 7, 9):
     # https://www.python.org/dev/peps/pep-0466/
     SSL_CERT_VERIFY_FAILED_MSG = "SSL: CERTIFICATE_VERIFY_FAILED"
 else:
-    # The OpenSSL error code for
-    #   certificate verify failed
-    # cf. `openssl errstr 14090086`
-    SSL_CERT_VERIFY_FAILED_MSG = ":14090086:"
+    # The error message of request for failed SSL certificate verification
+    SSL_CERT_VERIFY_FAILED_MSG = 'certificate verify failed'
 
 _logger = "comm.http"
 
