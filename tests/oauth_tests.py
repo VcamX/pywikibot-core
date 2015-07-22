@@ -78,6 +78,8 @@ class TestOauthLoginManger(DefaultOAuthSiteTestCase):
 
     def test_login(self):
         """Test login."""
+        from sys import stdin
+        self.assertFalse(stdin.isatty())
         login_manager = self._get_login_manager()
         login_manager.login()
         self.assertEqual(login_manager.consumer_token, self.consumer_token)
