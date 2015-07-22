@@ -21,7 +21,7 @@ import pywikibot
 
 from pywikibot import config
 from pywikibot.tools import deprecated_args, normalize_username
-from pywikibot.exceptions import NoUsername
+from pywikibot.exceptions import NoUsername, WrongPassword
 
 
 class _PasswordFileWarning(UserWarning):
@@ -272,6 +272,10 @@ usernames['%(fam_name)s']['%(wiki_code)s'] = 'myUsername'"""
             elif e.code == 'Illegal':
                 raise NoUsername(u"Username '%s' is invalid on %s"
                                  % (self.username, self.site))
+            elif e.code == 'WrongPass':
+                raise WrongPassword(
+                    'Wrong password for user {0} on site {1}'.format(
+                        self.username, self.site))
             # TODO: investigate other unhandled API codes (bug 73539)
             if retry:
                 self.password = None

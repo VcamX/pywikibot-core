@@ -202,6 +202,13 @@ class NoUsername(Error):
     pass
 
 
+class WrongPassword(Error):
+
+    """Password is wrong."""
+
+    pass
+
+
 class NoPage(PageRelatedError):  # noqa
 
     """Page does not exist"""
